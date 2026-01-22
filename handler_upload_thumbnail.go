@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -56,8 +58,16 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "Wrong media type", err)
 		return
 	}
+
 	extension := strings.Split(Mime, "/")[1]
-	AssetString := fmt.Sprintf("/%s.%s", videoID.String(), extension)
+
+	RandBytes := make([]byte, 32)
+	if _, err := rand.Read(RandBytes); err != nil {
+		respondWithError(w, http.StatusFailedDependency, "Couldn't create rand bytes", err)
+		return
+	}
+
+	AssetString := fmt.Sprintf("/%s.%s", base64.RawURLEncoding.EncodeToString(RandBytes), extension)
 	VideoPath := filepath.Join(cfg.assetsRoot, AssetString)
 	VideoAddress, err := os.Create(VideoPath)
 	if err != nil {
@@ -79,7 +89,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusUnauthorized, "User not video owner", err)
 		return
 	}
-	NewPath := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoID.String(), extension)
+	NewPath := fmt.Sprintf("http://localhost:%s/assets%s", cfg.port, AssetString)
 	DBVideoMeta.ThumbnailURL = &NewPath
 
 	if err := cfg.db.UpdateVideo(DBVideoMeta); err != nil {
